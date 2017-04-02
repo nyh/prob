@@ -21,7 +21,7 @@ main() {
         {1, 0.79},
         {2, 0.57},
     };
-#elif 0
+#elif 1
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.81},
         {1, 0.79},
@@ -41,7 +41,7 @@ main() {
         {1, 0.85},
         {2, 0.75},
     };
-#elif 1
+#elif 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.95},
         {1, 0.95},

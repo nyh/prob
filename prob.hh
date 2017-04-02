@@ -1,12 +1,3 @@
-// CONTINUE HERE:
-// To fix 0.8,0.8,0.8 case:
-//   1. Assume replicas are listed in same order on all nodes (e.g., IP
-//      address order. In our simulation this is fine (we have the same
-//      node vector given to all the calls).
-//   2. Do *not* move this node to location 0 - leave it where it is.
-//      fix the places having [0] and starting with j = 1;
-//
-//
 // FIXME: Stability:
 // The current mixed-node redistribution algorithm has a stability problem.
 // Currently, if all hit rates are equal and CL=2, each node gives itself
@@ -42,10 +33,11 @@
 #include <vector>
 #include <utility>
 #include <random>
+#include <algorithm>
+
+#include <cassert>
 
 #include <iostream>
-
-#include <boost/range/adaptor/filtered.hpp>
 
 namespace std {
 template <typename T>
