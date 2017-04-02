@@ -1,3 +1,23 @@
+/*
+ * Given a vector of cache hit ratio (hits per request) for each of N nodes,
+ * and knowing which of them is the current node, our goal is to return a
+ * random vector of C different nodes (i.e., a combination of C out of N),
+ * where the goals of the random distribution are:
+ *
+ * 1. If we send each request to the C returned nodes, the *misses per
+ *    second* of all nodes will be the same. In other words, nodes with
+ *    low hit ratios will be sent less work.
+ *
+ * 2. We know that this node is one of the N nodes. As much as possible,
+ *    without breaking goal 1, we should return this node as one of the
+ *    results.
+ *
+ * 3. We assume that *this node* got chosen uniformly randomly among the
+ *    N nodes (in other words, the client chose a coordinator node, us,
+ *     uniformly, and we need to choose C nodes and forward the request
+ *     to them).
+ */
+
 // FIXME: Stability:
 // The current mixed-node redistribution algorithm has a stability problem.
 // Currently, if all hit rates are equal and CL=2, each node gives itself
@@ -41,7 +61,7 @@
 
 namespace std {
 template <typename T>
-inline
+static inline
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
     bool first = true;
     os << "{";
@@ -183,22 +203,6 @@ public:
 
 
 
-
-// Given a vector of cache hit ratio (hits per request) for N nodes, assuming
-// the index i of the current node, return a random vector of C different
-// nodes (i.e., a combination of C out of N), where the goals of the
-// random distribution
-// are:
-//   1. If we send each request to the combination of nodes given to this
-//      function, overall, the *misses per second* of all nodes will be
-//      the same.
-//   2. This node is one of those nodes (node i). As much as possible
-//      (without hurting goal 1), we should return this node i as one of
-//      the results.
-//   3. We assume that we (node i) got chosen uniformly random among the
-//      N nodes (in other words, the client chose a coordinator node, us,
-//      uniformly, and we need to choose C nodes and forward the request
-//      to them).
 
 template<typename Node>
 #if 0
