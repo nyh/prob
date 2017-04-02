@@ -80,21 +80,49 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
 
 class rand_exception {};
 
-// TODO: use alias method? But only useful if we use randone() many
-// times on the same vector.
+
+// randone() takes a vector of N integers and a probability for each, and
+// returns one of these integers, according to the desired probabilities.
+// If the given probabilities do not sum to 1, they are normalized accordingly.
+//
+// This implementation has complexity O(N). If we plan to call randone()
+// many times on the same input and N can grow large, we should consider a
+// different implementation, known as "the alias method", which has O(N)
+// preperation stage (unavoidable, given our input is a vector of N items),
+// but then only O(1) for each call.
+// 
+// “The Alias Method” was first suggested by A.J. Walker in 1977 and later
+// refined by Knuth and others. The Alias method is explained in
+// https://prxq.wordpress.com/2006/04/17/the-alias-method/. Here is my
+// version of this explanation:
+// The traditional method implemented by randone() divides the interval [0,1)
+// into consecutive intervals of length Pi (where sum of Pi is 1), then picks
+// a random point [0,1) and checks which of the intervals it covers. The
+// observation behind the Alias Method is that the same technique will
+// continue to work if we take these intervals and rearrange and/or cut them
+// up as long as we keep their total lengths. The goal would be to cut them
+// up in such a way that it makes it easy (O(1)) to find which interval is
+// underneath each point we pick on [0,1).
+// To do this, we begin by dividing [0,1) to N intervals of equal length 1/N,
+// and then packing in each of those at most two intervals belonging to
+// different i’s. Now, to find to which i a point belongs to, all we need
+// to do is to find in which of the equal-length interval it is (a trivial
+// division and truncation), and then finding out which one of the two
+// possibilities that are left holds (one comparison).
+// How do we pack the equal-length 1/N intervals correctly? We begin by
+// putting in the first one a Pi such that Pi <= 1/N (always possible,
+// of course). If the inequality was strict, so Pi did not completely fill
+// the first 1/N-length interval, we pick another Pj where Pj >= 1/N (again,
+// possible), take away from it what is needed to fill up the 1/N-length
+// interval, reducing Pj for the rest of the algorithm. Now, we continue
+// the same algorithm with one interval less and one less value, so it will
+// end in O(N) time.
+// Various variations of and optimizations of the Alias Method are known,
+// see also
+// https://web.archive.org/web/20131029203736/http://web.eecs.utk.edu/~vose/Publications/random.pdf
 
 
-// Function for producing random combinations (i.e., unordered subset) of
-// length K out of N items 0..N-1.
-// Returns a vector<int> with size K whose items are different integers
-// between 0 and N-1.
-//
-// TODO: we can make this a template of K, N and have specialized
-// implementations for low N (e.g., 3) or K=N-1, etc.
-// TODO: write to a pre-allocated return vector to avoid extra allocation
-//
-// sum of floats doesn't need to be 1.
-std::pair<int, float>& randone(std::vector<std::pair<int, float>>& ip) {
+const std::pair<int, float>& randone(const std::vector<std::pair<int, float>>& ip) {
     float sum = 0.0;
     for (auto& t : ip) {
         sum += t.second;
@@ -107,18 +135,44 @@ std::pair<int, float>& randone(std::vector<std::pair<int, float>>& ip) {
             return t;
         }
     }
+    // can't be, if sum of p is sum
+    throw rand_exception();
+}
+// Same, with different interface. Assumes (but doesn't check) sum of p is
+// 1.0.
+// TODO: leave just one randone() implementation.
+int randone(const std::vector<float>& p,
+        float rnd = drand48()) {
+    //std::cout << "rnd = " << rnd << ", p= " << p << "\n";
+    int n = p.size();
+    for (int i = 0; i < n; i++) {
+        // TODO: no need to do this for the last one ;-)
+        rnd -=  p[i];
+        if (rnd <= 0) {
+            return i;
+        }
+    }
     // can't be, if sum of p is 1
-    std::cerr << "randone doesn't sum to 1. " << f << "\n";
     throw rand_exception();
 }
 
-// Method which gives each combination a probability instead of each
-// item, aiming at probabilties which solve the set of equations.
+
+// Function for producing random combinations (i.e., unordered subset) of
+// length K out of N items 0..N-1.
+// Returns a vector<int> with size K whose items are different integers
+// between 0 and N-1.
+//
+// TODO: we can make this a template of K, N and have specialized
+// implementations for low N (e.g., 3) or K=N-1, etc.
+// TODO: write to a pre-allocated return vector to avoid extra allocation
+//
+// This code is an incomplete attempt at giving each *combination* of K
+// items a probability (calculated from the probability of each item),
+// and then drawing a random combinaton. Currently, only the case of K = N-1
+// is implemented, where drawing a combination is as simple as drawing one
+// item which will be left *out* of the combination.
 std::vector<int>
 randcomb2(unsigned k, const std::vector<float>& p) {
-//    std::cout << "randomb2 " << k << " - ";
-//    for(auto& f : p) std::cout << f << " ";
-//    std::cout << "\n";
     int n = p.size();
     if (k > p.size()) {
         throw rand_exception();
@@ -128,10 +182,10 @@ randcomb2(unsigned k, const std::vector<float>& p) {
     std::vector<int> ret;
     ret.reserve(k);
     if (k == n) {
+        // NOTE: In this case we do not fulfill the desired p.
+        // return an error?
+        std::cerr << "randcomb2: can't match p. case 1.\n";
         for (int i = 0; i < n; i++) {
-            // NOTE: In this case we do not fulfill the desired p.
-            // return an error?
-            std::cerr << "randcomb2: can't match p. case 1.\n";
             ret.push_back(i);
         }
         return ret;
@@ -140,7 +194,6 @@ randcomb2(unsigned k, const std::vector<float>& p) {
         // combination x_i which misses exactly item i, so
         //
         // 1 - p(x_i) = sum_j!=i p(x_j) = k p_i
-        // (TODO: prove)
         std::vector<std::pair<int,float>> np;
         np.reserve(n);
         for (int i = 0; i < n; i++) {
@@ -170,13 +223,73 @@ randcomb2(unsigned k, const std::vector<float>& p) {
     throw rand_exception();
 }
 
-// Method due to http://stats.stackexchange.com/questions/139279/systematic-sampling-with-unequal-probabilities
-// see also https://en.wikipedia.org/wiki/Inclusion_probability
-// https://en.wikipedia.org/wiki/Systematic_sampling
-// CONTINUE HERE
+// Function for producing random combinations (i.e., unordered subset) of
+// length K out of N items 0..N-1.
+// Returns a vector<int> with size K whose items are different integers
+// between 0 and N-1.
+//
+// A vector of N probabilities is given, whose sum should be 1.0.
+// The meaning of a probability p_i is that if we look at all the items
+// returned in all the returned combinations, a fraction p_i of those will
+// be item i. Note that p_i should not be higher than 1/K: even if we return
+// item i in *every* K-combination, item i will still be only 1/K of the
+// produced items... To reach p_i > 1/K will mean some combinations will
+// need to contain more than one copy of i - which contradicts the defintion
+// of a "combination".
+//
+// As our incomplete attempt with randcomb2() shown, it is difficult to
+// fullfill both the 1st order inclusion probabilities (the given p vector)
+// and high-order inclusion probabilities (i.e., that the probability for
+// a pair of items, or a specific combination of items, is as can be
+// calculated by assuming the independence of several random draws).
+//
+// Therefore, randcomb3() attempts to fulfill *only* the 1st order inclusion
+// probabilities, forgoing any guarantees on high order inclusion
+// probabilities. In other words, the individual items may not be independent.
+// To understand what this means, consider a simple example: we have 4 items
+// with equal probability (N=4) and want to draw random pairs (K=2).
+// We can return {0,1} half of the time, and {2,3} the other half of the
+// time, and achieve the desired probabilities (each item will be given 1/4
+// of the work), but the pair {1,2}, for example, will never appear in any
+// individual draw.
+// In our use case, fulfilling *only* the 1st order inclusion probabilities
+// is enough, because this is all we really need: We want that each node
+// gets a given amount of work, but don't care if the different K nodes we
+// choose in one request are correlated.
+//
+// A simple method of reproducing a set of desired 1st-order inclusion
+// probabilities is Systematic Sampling, see definitions in
+//     * https://en.wikipedia.org/wiki/Inclusion_probability
+//     * https://en.wikipedia.org/wiki/Systematic_sampling
+// and a very good explanation how to use it in
+// http://stats.stackexchange.com/questions/139279/systematic-sampling-with-unequal-probabilities
+// The "Systematic Sampling" technique is a simple extension of the randone()
+// algorithm above. Both start by putting the given probabilities one after
+// another on the segment [0,1). randone() then drew one random number in
+// [0,1) and looked on which of the segments this point falls. Here, we draw
+// a random number x in [0, 1/K), look at it, but then look x+1/K, x+2/K...
+// and these produce K different items (the items must be different because
+// of our assumption that none of the p_i are larger than 1/K), and the
+// probability to choose each item is exactly p_i*K (which is equivalent
+// to saying that the item's overall share is p_i, as we desire).
+//
+// randcomb3() only calls for one random number generation (which is
+// important for performance) but calls randone() on the same vector K
+// times, which makes it even more interesting to implement the Alias Method
+// described above (of course, for very small N like 3, the difference is not
+// interesting).
 std::vector<int>
 randcomb3(unsigned k, const std::vector<float>& p) {
-    throw rand_exception();
+    const float interval = 1.0 / k;
+    const float rnd = drand48() * interval;  // random number in [0, 1/k)
+    std::vector<int> ret;
+    ret.reserve(k);
+    float offset = 0;
+    for (int i = 0; i < k; i++) {
+        ret.emplace_back(randone(p, rnd + offset));
+        offset += interval;
+    }
+    return ret;
 }
 
 template<typename Node>
@@ -193,7 +306,8 @@ public:
     std::vector<Node> get() {
         std::vector<Node> ret;
         ret.reserve(c);
-        std::vector<int> r = randcomb2(c, pp);
+        //std::vector<int> r = randcomb2(c, pp);
+        std::vector<int> r = randcomb3(c, pp);
         for (int i : r) {
             ret.push_back(nodes[i]);
         }
@@ -463,10 +577,6 @@ miss_equalizing_combination(
     for (int i = 0; i < rf; i++) {
         nodes[i] = epi[i].ep;
     }
-#if 0
-    combination_generator<Node> gen(std::move(pp), std::move(nodes), bf);
-    return gen.get();
-#endif
     return combination_generator<Node>(std::move(pp), std::move(nodes), bf);
 }
 
