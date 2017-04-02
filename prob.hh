@@ -238,13 +238,13 @@ randcomb2(unsigned k, const std::vector<float>& p) {
 // of a "combination".
 //
 // As our incomplete attempt with randcomb2() shown, it is difficult to
-// fullfill both the 1st order inclusion probabilities (the given p vector)
+// fulfill both the 1st order inclusion probabilities (the given p vector)
 // and high-order inclusion probabilities (i.e., that the probability for
 // a pair of items, or a specific combination of items, is as can be
 // calculated by assuming the independence of several random draws).
 //
 // Therefore, randcomb3() attempts to fulfill *only* the 1st order inclusion
-// probabilities, forgoing any guarantees on high order inclusion
+// probabilities, foregoing any guarantees on high order inclusion
 // probabilities. In other words, the individual items may not be independent.
 // To understand what this means, consider a simple example: we have 4 items
 // with equal probability (N=4) and want to draw random pairs (K=2).
@@ -278,6 +278,8 @@ randcomb2(unsigned k, const std::vector<float>& p) {
 // times, which makes it even more interesting to implement the Alias Method
 // described above (of course, for very small N like 3, the difference is not
 // interesting).
+// TODO: If k == n-1, should we fall back to randcomb2? It is slightly more
+// efficient because it only calls randone() once, not k times.
 std::vector<int>
 randcomb3(unsigned k, const std::vector<float>& p) {
     const float interval = 1.0 / k;
