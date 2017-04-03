@@ -2,6 +2,7 @@
 
 #include <string>
 
+int
 main() {
 #if 0
     std::vector<std::pair<int,float>> node_hit_rate {
@@ -17,7 +18,7 @@ main() {
         {2, 0.2},
     };
     int CL = 2;
-#elif 0
+#elif 1
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.81},
         {1, 0.79},
@@ -135,7 +136,7 @@ main() {
 //        std::cout << "\n";
     }
 
-    float sum;
+    float sum = 0;
     for(int i = 0; i < N; i++) {
         sum += count[i];
     }

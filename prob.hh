@@ -122,7 +122,7 @@ class rand_exception {};
 // https://web.archive.org/web/20131029203736/http://web.eecs.utk.edu/~vose/Publications/random.pdf
 
 
-const std::pair<int, float>& randone(const std::vector<std::pair<int, float>>& ip) {
+const std::pair<unsigned, float>& randone(const std::vector<std::pair<unsigned, float>>& ip) {
     float sum = 0.0;
     for (auto& t : ip) {
         sum += t.second;
@@ -141,11 +141,11 @@ const std::pair<int, float>& randone(const std::vector<std::pair<int, float>>& i
 // Same, with different interface. Assumes (but doesn't check) sum of p is
 // 1.0.
 // TODO: leave just one randone() implementation.
-int randone(const std::vector<float>& p,
+unsigned randone(const std::vector<float>& p,
         float rnd = drand48()) {
     //std::cout << "rnd = " << rnd << ", p= " << p << "\n";
-    int n = p.size();
-    for (int i = 0; i < n; i++) {
+    unsigned n = p.size();
+    for (unsigned i = 0; i < n; i++) {
         // TODO: no need to do this for the last one ;-)
         rnd -=  p[i];
         if (rnd < 0) {
@@ -171,21 +171,21 @@ int randone(const std::vector<float>& p,
 // and then drawing a random combinaton. Currently, only the case of K = N-1
 // is implemented, where drawing a combination is as simple as drawing one
 // item which will be left *out* of the combination.
-std::vector<int>
+std::vector<unsigned>
 randcomb2(unsigned k, const std::vector<float>& p) {
-    int n = p.size();
+    auto n = p.size();
     if (k > p.size()) {
         throw rand_exception();
     } else if (k == 0) {
-        return std::vector<int>();
+        return std::vector<unsigned>();
     }
-    std::vector<int> ret;
+    std::vector<unsigned> ret;
     ret.reserve(k);
     if (k == n) {
         // NOTE: In this case we do not fulfill the desired p.
         // return an error?
         std::cerr << "randcomb2: can't match p. case 1.\n";
-        for (int i = 0; i < n; i++) {
+        for (unsigned i = 0; i < n; i++) {
             ret.push_back(i);
         }
         return ret;
@@ -194,9 +194,9 @@ randcomb2(unsigned k, const std::vector<float>& p) {
         // combination x_i which misses exactly item i, so
         //
         // 1 - p(x_i) = sum_j!=i p(x_j) = k p_i
-        std::vector<std::pair<int,float>> np;
+        std::vector<std::pair<unsigned,float>> np;
         np.reserve(n);
-        for (int i = 0; i < n; i++) {
+        for (unsigned i = 0; i < n; i++) {
             // TODO: If negative, throw
             float q = 1 - k*p[i];
             if (q < 0) {
@@ -209,10 +209,10 @@ randcomb2(unsigned k, const std::vector<float>& p) {
             }
             np.emplace_back(i, q);
         }
-        int d = randone(np).first;
-        std::vector<int> ret;
+        auto d = randone(np).first;
+        std::vector<unsigned> ret;
         ret.reserve(k);
-        for (int i = 0; i < n; i++) {
+        for (unsigned i = 0; i < n; i++) {
             if (i != d) {
                 ret.push_back(i);
             }
@@ -287,7 +287,7 @@ randcomb3(unsigned k, const std::vector<float>& p) {
     std::vector<int> ret;
     ret.reserve(k);
     float offset = 0;
-    for (int i = 0; i < k; i++) {
+    for (unsigned i = 0; i < k; i++) {
         //std::cout << i << " " << rnd << " " << offset << "\n";
         ret.emplace_back(randone(p, rnd + offset));
         //std::cout << "randcomb3 i=" << i << ", rnd + offset = " << rnd + offset << "\n";
@@ -335,7 +335,6 @@ miss_equalizing_combination(
     assert(me < node_hit_rate.size());
 
     static thread_local std::default_random_engine random_engine;
-    static thread_local std::uniform_real_distribution<> lbalance = std::uniform_real_distribution<>(0, 1);
 
     struct ep_info {
         Node ep;
@@ -420,7 +419,7 @@ miss_equalizing_combination(
     std::vector<float> deficit(rf);
     float total_deficit = 0;
     int mixed_count = 0;
-    for (int j = 0; j < rf; j++) {
+    for (unsigned j = 0; j < rf; j++) {
         float NPj = rf * epi[j].p;
         float deficit_j = NPj - 1.0f / bf;
         if (deficit_j >= 0) {
@@ -454,7 +453,7 @@ miss_equalizing_combination(
     // consistent decisions of who sends whom what.
     std::vector<float> tmp_surplus(rf);
     // Set about tmp_surplus for mixed nodes
-    for (int j = 0; j < rf; j++) {
+    for (unsigned j = 0; j < rf; j++) {
         float NPj = rf * epi[j].p;
         float deficit_j = NPj - 1.0f / bf;
         if (deficit_j >= 0) {
@@ -469,7 +468,7 @@ miss_equalizing_combination(
     auto find_min_but_not_zero = [&] () {
         float m = std::numeric_limits<float>::infinity();
         int i = -1;
-        for (int j = 0; j < rf; j++) {
+        for (unsigned j = 0; j < rf; j++) {
             // HACK: If there's any deficit larger than 1/bf, we prefer to
             // close a bit of it first. Otherwise we can be left with just
             // one node with a deficit over 1/bf, that can cause p > 1/bf.
@@ -493,8 +492,8 @@ miss_equalizing_combination(
     auto find_max = [&] (int min_i) {
         float m = -std::numeric_limits<float>::infinity();
         int i = -1;
-        for (int j = 0; j < rf; j++) {
-            if (j != min_i && deficit[j] > m && tmp_surplus[j] > 1e-5) {
+        for (unsigned j = 0; j < rf; j++) {
+            if ((int)j != min_i && deficit[j] > m && tmp_surplus[j] > 1e-5) {
                 m = deficit[j];
                 i = j;
             }
@@ -521,8 +520,8 @@ miss_equalizing_combination(
             }
             // find some large enough deficit
             min_i = -1;
-            for (int j = 0; j < rf; j++) {
-                if (j != max_i && deficit[j] > tmp_surplus[max_i]) {
+            for (unsigned j = 0; j < rf; j++) {
+                if ((int)j != max_i && deficit[j] > tmp_surplus[max_i]) {
                     min_i = j;
                     break;
                 }
@@ -552,7 +551,7 @@ miss_equalizing_combination(
 //        exchange = std::min(exchange, 1.0f / bf);
         deficit[min_i] -= exchange;
         tmp_surplus[max_i] -= exchange;
-        if (max_i == me) {
+        if (max_i == (int)me) {
             // Remember how much *this* node needs to send to other nodes.
             //std::cout << "pp1 " << min_i << " " << pp[min_i] << " += " << exchange << "\n";
             pp[min_i] += exchange;
@@ -579,7 +578,7 @@ miss_equalizing_combination(
         // total remaining deficit.
         float my_surplus = 1.0f - rf * epi[me].p;
         float new_total_deficit = total_deficit - total_mixed_surplus;
-        for (int j = 0; j < rf ; j++) {
+        for (unsigned j = 0; j < rf ; j++) {
             if (deficit[j] > 0) {
                 // note j!= me because surplus node has deficit==0.
                 pp[j] = deficit[j] / new_total_deficit * my_surplus; 
@@ -596,7 +595,7 @@ miss_equalizing_combination(
 
 //    std::cout << pp << "\n";
     std::vector<Node> nodes(rf);
-    for (int i = 0; i < rf; i++) {
+    for (unsigned i = 0; i < rf; i++) {
         nodes[i] = epi[i].ep;
     }
     return combination_generator<Node>(std::move(pp), std::move(nodes), bf);
