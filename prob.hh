@@ -131,7 +131,7 @@ const std::pair<int, float>& randone(const std::vector<std::pair<int, float>>& i
     for (auto& t : ip) {
         // TODO: no need to do this for the last one ;-)
         f -=  t.second;
-        if (f <= 0) {
+        if (f < 0) {
             return t;
         }
     }
@@ -148,7 +148,7 @@ int randone(const std::vector<float>& p,
     for (int i = 0; i < n; i++) {
         // TODO: no need to do this for the last one ;-)
         rnd -=  p[i];
-        if (rnd <= 0) {
+        if (rnd < 0) {
             return i;
         }
     }
@@ -288,9 +288,12 @@ randcomb3(unsigned k, const std::vector<float>& p) {
     ret.reserve(k);
     float offset = 0;
     for (int i = 0; i < k; i++) {
+        //std::cout << i << " " << rnd << " " << offset << "\n";
         ret.emplace_back(randone(p, rnd + offset));
+        //std::cout << "randcomb3 i=" << i << ", rnd + offset = " << rnd + offset << "\n";
         offset += interval;
     }
+    //std::cout << "ret " << ret << "\n";
     return ret;
 }
 
@@ -467,6 +470,13 @@ miss_equalizing_combination(
         float m = std::numeric_limits<float>::infinity();
         int i = -1;
         for (int j = 0; j < rf; j++) {
+            // HACK: If there's any deficit larger than 1/bf, we prefer to
+            // close a bit of it first. Otherwise we can be left with just
+            // one node with a deficit over 1/bf, that can cause p > 1/bf.
+            // Unfortunately, this breaks the 08.1,0.79,0.57 test case
+            //if (deficit[j] > 1.0f/bf) {
+            //    return j;
+            //}
             if (deficit[j] < m && deficit[j] > 1e-5) {
                 m = deficit[j];
                 i = j;
@@ -538,10 +548,13 @@ miss_equalizing_combination(
         // it makes sense to even things out instead of one node giving
         // everything to another node when the deficits are close? How?
         float exchange = std::min(tmp_surplus[max_i], deficit[min_i]);
+//        // But we can't give more than 1/C. (TODO: is this check even needed?)
+//        exchange = std::min(exchange, 1.0f / bf);
         deficit[min_i] -= exchange;
         tmp_surplus[max_i] -= exchange;
         if (max_i == me) {
             // Remember how much *this* node needs to send to other nodes.
+            //std::cout << "pp1 " << min_i << " " << pp[min_i] << " += " << exchange << "\n";
             pp[min_i] += exchange;
         }
         return true;
@@ -570,6 +583,13 @@ miss_equalizing_combination(
             if (deficit[j] > 0) {
                 // note j!= me because surplus node has deficit==0.
                 pp[j] = deficit[j] / new_total_deficit * my_surplus; 
+                if (pp[j] > 1.0f/bf) {
+                    // problem...
+                    // FIXME: this happens in 0.79/0.78/0.77/0.80/0.32 CL=2 test case
+                    //std::cout << "pp2 " << j << " " << pp[j] << "\n";
+                    //std::cout << "    " << deficit[j] << " " << new_total_deficit << " " << my_surplus << "\n";
+                    //std::cout << deficit << "\n";
+                }
             }
         }
     }

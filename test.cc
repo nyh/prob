@@ -9,30 +9,35 @@ main() {
         {1, 0.8},
         {2, 0.8},
     };
+    int CL = 2;
 #elif 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.8},
         {1, 0.8},
         {2, 0.2},
     };
+    int CL = 2;
 #elif 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.81},
         {1, 0.79},
         {2, 0.57},
     };
-#elif 1
+    int CL = 2;
+#elif 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.81},
         {1, 0.79},
         {2, 0.27},
     };
+    int CL = 2;
 #elif 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.87},
         {1, 0.83},
         {2, 0.75},
     };
+    int CL = 2;
 #elif 0
     // This case is impossible to reproduce the desired
     // probabilities because node 0 wants probability > 0.5.
@@ -41,14 +46,36 @@ main() {
         {1, 0.85},
         {2, 0.75},
     };
+    int CL = 2;
 #elif 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.95},
         {1, 0.95},
         {2, 0.15},
     };
-#endif
     int CL = 2;
+#elif 1
+    // FIXME: doesn't work
+    // "HACK" in prob.hh fixes this, but ruins another case.
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.79},
+        {1, 0.78},
+        {2, 0.77},
+        {3, 0.80},
+        {4, 0.32},
+    };
+    int CL = 2;
+#elif 1
+    // FIXME: doesn't work
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.79},
+        {1, 0.78},
+        {2, 0.77},
+        {3, 0.80},
+        {4, 0.32},
+    };
+    int CL = 3;
+#endif
     int N = node_hit_rate.size();
 
     std::cout << "N=" << node_hit_rate.size() << " nodes, given hit rates:\n";
@@ -69,6 +96,8 @@ main() {
     for (auto& v : count2) {
         v.resize(N);
     }
+    // count of *invalid* combinations drawn. Should be 0 of course
+    int count_invalid = 0;
     // TODO: also count the times that a particular coordinator sent to
     // a particular CL combination 
 
@@ -83,12 +112,25 @@ main() {
 //        std::cout << "coordinator " << coord << ": ";
         auto gen = miss_equalizing_combination(node_hit_rate, coord, CL);
         auto c = gen.get();
+//        std::cout << "combination: " << c << "\n";
         // sort just for nicer printout (more useful with uniq)
         std::sort(c.begin(), c.end());
+        bool invalid = false;
+        int prev = -1;
         for(auto& s : c) {
 //            std::cout << s << " ";
+            if (prev == s) {
+                // found duplicate in returned combination! It's easy to
+                // check because we sorted the combination.
+                invalid = true;
+            }
+            prev = s;
             count[s]++;
             count2[coord][s]++;
+        }
+        if (invalid) {
+            std::cout << "invalid combination: " << c << "\n";
+            count_invalid++;
         }
 //        std::cout << "\n";
     }
@@ -123,4 +165,7 @@ main() {
         }
     }
     std::cout << "\n";
+    if (count_invalid) {
+        std::cout << "ERROR: Found invalid combinations: " << count_invalid << "\n";
+    }
 }
