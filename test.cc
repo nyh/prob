@@ -96,7 +96,6 @@ main() {
     };
     int CL = 2;
 #elif 1
-    // FIXME: doesn't work
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.79},
         {1, 0.78},

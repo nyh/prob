@@ -162,6 +162,9 @@ const std::pair<unsigned, float>& randone(const std::vector<std::pair<unsigned, 
         }
     }
     // can't be, if sum of p is sum
+#ifdef TRACE
+    std::cout << "randone1 exception\n";
+#endif
     throw rand_exception();
 }
 // Same, with different interface. Assumes (but doesn't check) sum of p is
@@ -169,17 +172,16 @@ const std::pair<unsigned, float>& randone(const std::vector<std::pair<unsigned, 
 // TODO: leave just one randone() implementation.
 unsigned randone(const std::vector<float>& p,
         float rnd = drand48()) {
-    //std::cout << "rnd = " << rnd << ", p= " << p << "\n";
     unsigned n = p.size();
-    for (unsigned i = 0; i < n; i++) {
-        // TODO: no need to do this for the last one ;-)
+    for (unsigned i = 0; i < n - 1; i++) {
         rnd -=  p[i];
         if (rnd < 0) {
             return i;
         }
     }
-    // can't be, if sum of p is 1
-    throw rand_exception();
+    // TODO: confirm that rnd is 0, or at least very close to 0? Otherwise
+    // p didn't sum up to 1...
+    return n - 1;
 }
 
 
@@ -201,6 +203,9 @@ std::vector<unsigned>
 randcomb2(unsigned k, const std::vector<float>& p) {
     auto n = p.size();
     if (k > p.size()) {
+#ifdef TRACE
+        std::cout << "randcomb2 exception\n";
+#endif
         throw rand_exception();
     } else if (k == 0) {
         return std::vector<unsigned>();
@@ -246,6 +251,9 @@ randcomb2(unsigned k, const std::vector<float>& p) {
         return ret;
     }
     // TODO
+#ifdef TRACE
+    std::cout << "randcomb2a exception\n";
+#endif
     throw rand_exception();
 }
 
