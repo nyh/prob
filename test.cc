@@ -2,8 +2,28 @@
 
 #include <string>
 
+// do_reorder() cycles the node_hit_rate vector to have "me" as first, because
+// that's how it looks in the original caller.
+std::vector<std::pair<int,float>> do_reorder(
+    std::vector<std::pair<int,float>> node_hit_rate,
+    int me) {
+    decltype(node_hit_rate) ret;
+    ret.reserve(node_hit_rate.size());
+    for (unsigned i = 0; i < node_hit_rate.size(); i++) {
+        auto a = node_hit_rate[(me + i) % node_hit_rate.size()];
+        // add small (1%) random perturbation
+        //a.second += (drand48()-0.5)*2*0.05*a.second;
+        // add a consistent perturbation different for each node
+        //a.second += a.second * 0.01 * i;
+        ret.push_back(a);
+    }
+    //std::cout << ret << "\n";
+    return ret;
+}
+
 int
 main() {
+    bool reorder = false;
 #if 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.8},
@@ -18,7 +38,18 @@ main() {
         {2, 0.2},
     };
     int CL = 2;
-#elif 1
+#elif 0
+    // Reorder the nodes on different coordinators (cyclic reordering
+    // so the coordinator is first) and see that it doesn't mess up the
+    // decisions like happened in previous versions.
+    reorder = true;
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.8},
+        {1, 0.57},
+        {2, 0.8},
+    };
+    int CL = 2;
+#elif 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.81},
         {1, 0.79},
@@ -55,9 +86,7 @@ main() {
         {2, 0.15},
     };
     int CL = 2;
-#elif 1
-    // FIXME: doesn't work
-    // "HACK" in prob.hh fixes this, but ruins another case.
+#elif 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.79},
         {1, 0.78},
@@ -111,8 +140,14 @@ main() {
         // pick coordinator randomly, and then see which 2 nodes it will choose
         int coord = rand_node(random_engine);
 //        std::cout << "coordinator " << coord << ": ";
-        auto gen = miss_equalizing_combination(node_hit_rate, coord, CL);
-        auto c = gen.get();
+        std::vector<int> c;
+        if (reorder) {
+            auto gen = miss_equalizing_combination(do_reorder(node_hit_rate, coord), 0, CL);
+            c = gen.get();
+        } else {
+            auto gen = miss_equalizing_combination(node_hit_rate, coord, CL);
+            c = gen.get();
+        }
 //        std::cout << "combination: " << c << "\n";
         // sort just for nicer printout (more useful with uniq)
         std::sort(c.begin(), c.end());
@@ -143,6 +178,26 @@ main() {
     std::cout << "work sent to nodes: ";
     for(int i = 0; i < N; i++) {
         std::cout << count[i]/sum << " ";
+    }
+    std::cout << "\n";
+    std::cout << "          expected: ";
+    std::vector<float> p;
+    float p_sum = 0;
+    for(int i = 0; i < N; i++) {
+        float r = 1/(1-node_hit_rate[i].second);
+        p.push_back(r);
+        p_sum += r;
+    }
+    for(int i = 0; i < N; i++) {
+        p[i] /= p_sum;
+    }
+    for(int i = 0; i < N; i++) {
+        std::cout << p[i] << " ";
+    }
+    std::cout << "\n";
+    std::cout << "             error: ";
+    for(int i = 0; i < N; i++) {
+        std::cout << (count[i]/sum/p[i] - 1)*100 << "% ";
     }
     std::cout << "\n";
     std::cout << "misses (work * (1-hitrate)), normalized. Should be all 1:\n\t";

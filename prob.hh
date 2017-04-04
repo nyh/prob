@@ -1,3 +1,4 @@
+#undef TRACE
 /*
  * Given a vector of cache hit ratio (hits per request) for each of N nodes,
  * and knowing which of them is the current node, our goal is to return a
@@ -51,6 +52,7 @@
 //    Node 2 gives 0.5 to itself, 0.25 to 0, 0.25 to 1
 //
 #include <vector>
+#include <list>
 #include <utility>
 #include <random>
 #include <algorithm>
@@ -59,6 +61,7 @@
 
 #include <iostream>
 
+#if 1
 namespace std {
 template <typename T>
 static inline
@@ -76,7 +79,30 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
     os << "}";
     return os;
 }
+template <typename T>
+static inline
+std::ostream& operator<<(std::ostream& os, const std::list<T>& v) {
+    bool first = true;
+    os << "{";
+    for (auto&& elem : v) {
+        if (!first) {
+            os << ", ";
+        } else {
+            first = false;
+        }
+        os << elem;
+    }
+    os << "}";
+    return os;
 }
+template <typename T1, typename T2>
+static inline
+std::ostream& operator<<(std::ostream& os, const std::pair<T1, T2>& v) {
+    os << "{" << v.first << ", " << v.second << "}";
+    return os;
+}
+}
+#endif
 
 class rand_exception {};
 
@@ -384,10 +410,13 @@ miss_equalizing_combination(
         }
     }
 
-//    std::cout << "epi:\n";
-//    for(auto& e : epi) {
-//        std::cout << "ep=" << e.ep << ", ht=" << e.ht << ", p=" << e.p << "\n";
-//    }
+#ifdef TRACE
+    std::cout << "desired probabilities:\n";
+    for (unsigned i = 0; i < epi.size(); i++) {
+        std::cout << epi[i].ep << ": " << epi[i].p <<
+            ((i==me) ? " (coordinator)\n" : "\n");
+    }
+#endif
 
 
     std::vector<float> pp(rf);
@@ -395,9 +424,7 @@ miss_equalizing_combination(
     // A surplus node keeps its entire desired amount of request, N*p,
     // for itself. A mixed node is cut off by 1/C.
     pp[me] = std::min(rf * epi[me].p, 1.0f / bf);
-    bool me_mixed = rf * epi[me].p >= 1.0f / bf;
 
-// FIXME: CONTINUE HERE:
 // In 0.81,0.79,0.27 i.e., p = 0.461,0.417,0.12 we get:
 //           p          surplus      deficit
 // mixed   0.461        0.5          0.883
@@ -409,10 +436,10 @@ miss_equalizing_combination(
 // node's surplus (0.5) so we wouldn't be able to close all of it!
 //
 // So we can't normalize like we did before.
-// But if we don't normalize, we also don't know what is the remaining
+// And if we don't normalize, we also don't know what is the remaining
 // deficit without performing the entire mixed-nodes algorithm, even
 // if me is a suplus node!
-// Let's just run the mixed node algorithm in every case, regardless of
+// So we just run the mixed node algorithm in every case, regardless of
 // what this node is. We need to remember the deficit left at its
 // end.
 
@@ -429,171 +456,172 @@ miss_equalizing_combination(
             total_deficit += deficit_j;
         }
     }
-//    std::cout << "mixed_count " << mixed_count << "\n";
-//    std::cout << "deficit " << deficit << "\n";
-    // Total surplus of mixed nodes only. Note that there are mixed_count
-    // of those, and each one has surplus of exactly 1/ C
-    float total_mixed_surplus = mixed_count * (1.0f - 1.0f / bf);
-#if 0
-    // The mixed node redistribution algorithm (we don't care about
-    // its details here) removes a total of mixed_surplus_sum from
-    // total_deficit - divided into equal shares.
-    float factor = total_mixed_surplus / total_deficit;
-    for (int j = 0; j < rf; j++) {
-        deficit[j] = deficit[j] * factor;
-    }
-#endif
-//    std::cout << "deficit2 " << deficit << "\n";
+    // Each of the mixed nodes have the same same surplus:
+    float mixed_surplus = 1 - 1.0f / bf;
 
-    // Participate in an algorithm to redistribute all the mixed nodes'
-    // surplus to fill part of their deficit. Also, if this node is one
-    // of the mixed nodes, while running this algorithm, remember in pp[]
-    // what amount of work this node (me) sent to other nodes.
-    // We need to run the same algorithm on all nodes to achieve
-    // consistent decisions of who sends whom what.
-    std::vector<float> tmp_surplus(rf);
-    // Set about tmp_surplus for mixed nodes
-    for (unsigned j = 0; j < rf; j++) {
-        float NPj = rf * epi[j].p;
-        float deficit_j = NPj - 1.0f / bf;
-        if (deficit_j >= 0) {
-            // mixed node
-            tmp_surplus[j] = 1 - 1.0f / bf;
+#ifdef TRACE
+    std::cout << "mixed_count " << mixed_count << "\n";
+    std::cout << "starting distribution of mixed-node surplus to other mixed nodes:\n";
+    std::cout << "deficit " << deficit << "\n";
+    std::cout << "mixed_surplus " << mixed_surplus << "\n";
+#endif
+
+    float my_surplus;
+    if (deficit[me] == 0) {
+        // surplus node
+        my_surplus = 1 - rf * epi[me].p;
+    } else {
+        // mixed node, which will be converted below to either a deficit
+        // node or a surplus node. We can easily calculate now how much
+        // surplus will be left. It will be useful to know below if "me"
+        // will be a surplus node, because we only need to know how much
+        // work "me" *sends*, so if me is not a surplus node, we won't need
+        // to do the second step (of distributing surplus to the deficit
+        // nodes), and won't even need to update deficit[].
+        if (deficit[me] <= mixed_surplus) {
+            // Node will be converted to a surplus node
+            my_surplus = mixed_surplus - deficit[me];
+        } else {
+            // Node will be converted to a deficit node, and will not be
+            // left with any surplus
+            my_surplus = 0;
         }
     }
-//    std::cout << "tmp_surplus=" << tmp_surplus << ", deficit=" << deficit << "\n";
-    // Find the next node we want to fill its deficit, by picking the
-    // one with the smallest deficit. Nodes that already have zero
-    // deficit do not need filling, and are not picked.
-    auto find_min_but_not_zero = [&] () {
-        float m = std::numeric_limits<float>::infinity();
-        int i = -1;
-        for (unsigned j = 0; j < rf; j++) {
-            // HACK: If there's any deficit larger than 1/bf, we prefer to
-            // close a bit of it first. Otherwise we can be left with just
-            // one node with a deficit over 1/bf, that can cause p > 1/bf.
-            // Unfortunately, this breaks the 08.1,0.79,0.57 test case
-            //if (deficit[j] > 1.0f/bf) {
-            //    return j;
-            //}
-            if (deficit[j] < m && deficit[j] > 1e-5) {
-                m = deficit[j];
-                i = j;
+#ifdef TRACE
+    std::cout << "my_surplus " << my_surplus << "\n";
+#endif
+
+    // Mixed node redistribution algorithm, to "convert" mixed nodes into
+    // pure surplus or pure deficit nodes, while flowing probability between
+    // the mixed nodes (we only need to track this flow here if "me" is the
+    // node doing the sending - in pp[]).
+    if (deficit[me]) {
+        // "me" is a mixed node. 
+#ifdef TRACE
+        std::cout << "CASE1\n";
+#endif
+        // We need a list of the mixed nodes sorted in increasing deficit order.
+        // Actually, we only need to sort those nodes with deficit <=
+        // min(deficit[me], mixed_surplus.
+        // TODO: use NlgN sort instead of this ridiculous N^2 implementation.
+        // TODO: can we do this without a NlgN (although very small N, not even
+        // the full rf)? Note also the distribution code below is N^2 anway
+        // (two nested for loops).
+        std::list<std::pair<unsigned, float>> sorted_deficits;
+        for (unsigned i = 0; i < rf; i++) {
+            if (deficit[i] && deficit[i] <= deficit[me] &&
+                    deficit[i] < mixed_surplus) {
+                auto it = sorted_deficits.begin();
+                while (it != sorted_deficits.end() && it->second < deficit[i])
+                    ++it;
+                sorted_deficits.insert(it, std::make_pair(i, deficit[i]));
             }
         }
-        return i;
-    };
-    // Find a node which can contribute surplus to fill (partly) the
-    // deficit in node "min_i" found by find_min_but_not_zero() above.
-    // This has to be a different node, cannot be "min_i" again. We find
-    // this node by taking the one with maximal deficit (a). However,
-    // it cannot be a node whose surplus (b) is zero, otherwise it will
-    // have nothing to contribute.
-    auto find_max = [&] (int min_i) {
-        float m = -std::numeric_limits<float>::infinity();
-        int i = -1;
-        for (unsigned j = 0; j < rf; j++) {
-            if ((int)j != min_i && deficit[j] > m && tmp_surplus[j] > 1e-5) {
-                m = deficit[j];
-                i = j;
+#ifdef TRACE
+        std::cout << "sorted_deficits " << sorted_deficits << "\n";
+#endif
+        float s = 0;
+        int count = mixed_count;
+        for (auto &d : sorted_deficits) {
+#ifdef TRACE
+            std::cout << "next sorted deficit: " << d << "\n";
+#endif
+            // What "diff" to distribute
+            auto diff = d.second - s;
+            s = d.second;
+            if (!diff) {
+                continue;
             }
-        }
-        return i;
-    };
-    auto step = [&] () {
-        // Look for highest and lowest deficit
-        int min_i = find_min_but_not_zero();
-        int max_i = find_max(min_i);
-//        std::cout << "min_i = " << min_i << ", max_i=" << max_i << "\n";
-        if (max_i == -1 && min_i == -1) {
-//                std::cout << "success\n";
-            return false; // success
-        } else if (max_i == -1) {
-            // FIXME: This is a hack for the hitrate case (0.81, 0.79, 0.27).
-            // But we need to do something nicer.
-            // we found min_i but then didn't find max_i. Probably
-            // we chose as min_i the only viable option for max_i.
-            // Try that
-            max_i = min_i;
-            if (tmp_surplus[max_i] < 1e-5) {
-                return false; // nothing more worth doing
-            }
-            // find some large enough deficit
-            min_i = -1;
-            for (unsigned j = 0; j < rf; j++) {
-                if ((int)j != max_i && deficit[j] > tmp_surplus[max_i]) {
-                    min_i = j;
-                    break;
+#ifdef TRACE
+            std::cout << "     diff: " << diff << "\n";
+            std::cout << "     pp before: " << pp << "\n";
+            std::cout << "     count: " << count << "\n";
+#endif
+            // Distribute it among all the mixed nodes with higher deficit
+            // there should be exactly count of those including me.
+            for (unsigned i = 0; i < rf; i++) {
+#ifdef TRACE
+                std::cout << i << " " << d.first << " " << deficit[i] << " " << d.second << "\n";
+#endif
+                // TODO: think here - is >= ok?
+                if (i != me && deficit[i] >= d.second) {
+                    pp[i] += diff / (count - 1);
                 }
             }
-            if (max_i == -1 || min_i == -1) {
-                std::cout << "fail3\n";
-                return false;
-            }
-        } else if (max_i == -1 || min_i == -1) {
-            // fail. FIXME: warn?
-            std::cout << "fail1\n";
-            return false;
-        } else if (max_i == min_i) {
-            // fail. bug?
-            std::cout << "fail2\n";
-            return false;
-        }
-        // TODO: if we already saw this min_i,max_i pair before we have
-        // a bug. maybe an infinite loop. And better stop.
 
-        // Give as much as of max_i's surplus to min_i.
-        // TODO: consider if we always want to give everything. Perhaps
-        // it makes sense to even things out instead of one node giving
-        // everything to another node when the deficits are close? How?
-        float exchange = std::min(tmp_surplus[max_i], deficit[min_i]);
-//        // But we can't give more than 1/C. (TODO: is this check even needed?)
-//        exchange = std::min(exchange, 1.0f / bf);
-        deficit[min_i] -= exchange;
-        tmp_surplus[max_i] -= exchange;
-        if (max_i == (int)me) {
-            // Remember how much *this* node needs to send to other nodes.
-            //std::cout << "pp1 " << min_i << " " << pp[min_i] << " += " << exchange << "\n";
-            pp[min_i] += exchange;
+#ifdef TRACE
+            std::cout << "     pp after: " << pp << "\n";
+#endif
+            // TODO: confirm last loop really had "count" success iterations.
+            --count;
+            if (d.first == me) {
+                // We only care what "me" sends, and only the elements in
+                // the sorted list earlier than me could have forced it to
+                // send, so the rest of the algorithm isn't interesting.
+                break;
+            }
         }
-        return true;
-    };
-    while (step()) {
-//            std::cout << "tmp_surplus=" << tmp_surplus << ", deficit=" << deficit << "\n";
+        // additionally, if me is beyond the partial sorted_deficits,
+        // i.e., it is converted to a deficit node, we need to take
+        // the remaining surplus (mixed_surplus minus the last deficit
+        // in sorted_deficits) and distribute it to the other count-1
+        // converted-to-surplus nodes.
+        if (deficit[me] > mixed_surplus) {
+            auto last_deficit = sorted_deficits.back().second;
+            auto diff = mixed_surplus - last_deficit;
+#ifdef TRACE
+            std::cout << "CASE2 diff=" << diff << "\n";
+#endif
+            for (unsigned i = 0; i < rf; i++) {
+                if (i != me && deficit[i] > last_deficit) {
+                    pp[i] += diff / (count - 1);
+                }
+            }
+#ifdef TRACE
+            std::cout << "     pp after: " << pp << "\n";
+#endif
+        }
     }
 
-    // After redistributing the work of mixed nodes and "cancelling out"
-    // all of their surplus, the mixed nodes become deficit-only nodes
-    // (whose remaining deficit we already know in deficit[]) and, and
-    // surplus nodes have surplus only. We now redistribute this using
-    // the simple equal-share algorithm. Remember we only care about what
-    // this node (0) gives out. 
-    if (me_mixed) {
-        // After the cancelling out of mixed nodes, this remains a deficit-
-        // only node, and it has nothing more to send (beyond what it already
-        // put in pp[] in the previous step).
-    } else {
-        // This is surplus-only node. We need to split its surplus to the
-        // other nodes' remaining deficit, according to their share in the
-        // total remaining deficit.
-        float my_surplus = 1.0f - rf * epi[me].p;
-        float new_total_deficit = total_deficit - total_mixed_surplus;
+    if (my_surplus) {
+        // "me" is a surplus node, or became one during the mixed node
+        // redistribution algorithm.  We need to know the new deficit nodes
+        // produced by that algorithm. i.e., we need to update deficit[].
+        float new_total_deficit = 0;
+        for (unsigned i = 0; i < rf; i++) {
+            if (deficit[i] > 0) {
+                // Mixed node.
+                if (deficit[i] > mixed_surplus) {
+                    // The mixed-node redistribution algorithm converted it
+                    // to a deficit node, with this deficit:
+                    deficit[i] -= mixed_surplus;
+                    new_total_deficit += deficit[i];
+                } else {
+                    // The mixed-node redistribution algorithm converted it
+                    // to a surplus node, with no deficit:
+                    deficit[i] = 0;
+                }
+            }
+        }
+        // Split "me"'s surplus to the other nodes' remaining deficit,
+        // according to their share in the total remaining deficit.
         for (unsigned j = 0; j < rf ; j++) {
             if (deficit[j] > 0) {
                 // note j!= me because surplus node has deficit==0.
-                pp[j] = deficit[j] / new_total_deficit * my_surplus; 
+                // Note pp[j] +=, not =, because this node might have
+                // already flowed some work to other nodes in the
+                // mixed node redistribution algorithm above.
+                pp[j] += deficit[j] / new_total_deficit * my_surplus; 
                 if (pp[j] > 1.0f/bf) {
-                    // problem...
-                    // FIXME: this happens in 0.79/0.78/0.77/0.80/0.32 CL=2 test case
-                    //std::cout << "pp2 " << j << " " << pp[j] << "\n";
-                    //std::cout << "    " << deficit[j] << " " << new_total_deficit << " " << my_surplus << "\n";
-                    //std::cout << deficit << "\n";
+                    std::cout << "PROB.H PROBLEM1\n";
                 }
             }
         }
     }
 
-//    std::cout << pp << "\n";
+#ifdef TRACE
+    std::cout << "returned pp: " << pp << "\n";
+#endif
     std::vector<Node> nodes(rf);
     for (unsigned i = 0; i < rf; i++) {
         nodes[i] = epi[i].ep;
