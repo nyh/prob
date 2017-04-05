@@ -95,7 +95,7 @@ main() {
         {4, 0.32},
     };
     int CL = 2;
-#elif 1
+#elif 0
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.79},
         {1, 0.78},
@@ -104,7 +104,18 @@ main() {
         {4, 0.32},
     };
     int CL = 3;
+#elif 1
+    // Test for the algorithm fix for the case where after the algorithm we
+    // we are left with just one mixed node, and need to redistribute some of
+    // the pp changes.
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.80},
+        {1, 0.65},
+        {2, 0.55},
+    };
+    int CL = 2;
 #endif
+// TODO: more tests - test also CL=1, CL=4, etc.
     int N = node_hit_rate.size();
 
     std::cout << "N=" << node_hit_rate.size() << " nodes, given hit rates:\n";

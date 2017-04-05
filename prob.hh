@@ -18,39 +18,6 @@
  *     uniformly, and we need to choose C nodes and forward the request
  *     to them).
  */
-
-// FIXME: Stability:
-// The current mixed-node redistribution algorithm has a stability problem.
-// Currently, if all hit rates are equal and CL=2, each node gives itself
-// 0.5 and 0.5 to one other node. But we don't want node 0 to decide to
-// give 0.5 to node 1, and then node 2 decides independently to give 0.5
-// also to the same node 1 - node 2 should decide to give the 0.5 to node 0.
-// This can be achieved by ensuring that all nodes run the algorithm on the
-// same list of nodes in the same order, and make exactly the same decisions.
-// However, we have a stability problem - what if node 0 thinks the hit
-// ratios are 1.0 0.99 0.99 but node 2 thinks they are 1.01 1.0 1.0? They
-// may again make conflicting decisions!
-// The solution is for a node NOT to give out all its requests to one other
-// node but rather spread them. That is stable - the spread changes only
-// slightly if the input probabilities change slightly, rather than
-// switching from giving everything to node 1 instead of everything to node
-// 2 if one probability changes slightly.
-// Example:
-// N=3, CL=2, three equal hit ratios.
-// In the solution, all three nodes will give 0.5 to themselves.
-// 1. A non-stable solution (our current solution):
-//    Node 0 gives 0.5 to itself, 0.5 to 1
-//    Node 1 gives 0.5 to itself, 0.5 to 2
-//    Node 2 gives 0.5 to itself, 0.5 to 0
-//    So node 0 gives all its surplus work to node 1, assuming that node 1
-//    and 2 will give their surplus to different nodes). But the problem is
-//    that each node makes its decisions separately, so two nodes might
-//    decide to send all their surplus to node 1 (for example).
-// 2. A possible stable solution:
-//    Node 0 gives 0.5 to itself, 0.25 to 1, 0.25 to 2
-//    Node 1 gives 0.5 to itself, 0.25 to 0, 0.25 to 2
-//    Node 2 gives 0.5 to itself, 0.25 to 0, 0.25 to 1
-//
 #include <vector>
 #include <list>
 #include <utility>
@@ -510,7 +477,7 @@ miss_equalizing_combination(
 #endif
         // We need a list of the mixed nodes sorted in increasing deficit order.
         // Actually, we only need to sort those nodes with deficit <=
-        // min(deficit[me], mixed_surplus.
+        // min(deficit[me], mixed_surplus).
         // TODO: use NlgN sort instead of this ridiculous N^2 implementation.
         // TODO: can we do this without a NlgN (although very small N, not even
         // the full rf)? Note also the distribution code below is N^2 anway
@@ -569,25 +536,93 @@ miss_equalizing_combination(
                 break;
             }
         }
-        // additionally, if me is beyond the partial sorted_deficits,
-        // i.e., it is converted to a deficit node, we need to take
-        // the remaining surplus (mixed_surplus minus the last deficit
+        // additionally, if me is converted to a deficit node, we need to
+        // take the remaining surplus (mixed_surplus minus the last deficit
         // in sorted_deficits) and distribute it to the other count-1
-        // converted-to-surplus nodes.
+        // converted-to-surplus nodes. Of course we can only do this if
+        // count > 1 - if count==1, we remain with just one mixed node
+        // and cannot eliminate its surplus without "fixing" some of the
+        // decisions made earlier
         if (deficit[me] > mixed_surplus) {
             auto last_deficit = sorted_deficits.back().second;
             auto diff = mixed_surplus - last_deficit;
+            if (count > 1) {
+                for (unsigned i = 0; i < rf; i++) {
+                    if (i != me && deficit[i] > last_deficit) {
+                        pp[i] += diff / (count - 1);
+                    }
+                }
+                // TODO: confirm that this loop worked exactly count - 1 times.
+            } else {
 #ifdef TRACE
-            std::cout << "CASE2 diff=" << diff << "\n";
+                std::cout << "CASE3a. surplus " << diff << "\n";
 #endif
-            for (unsigned i = 0; i < rf; i++) {
-                if (i != me && deficit[i] > last_deficit) {
-                    pp[i] += diff / (count - 1);
+                // CASE3: count == 1 is possible. example for p = 0.2, 0.3, 0.5:
+                //    surplus  0.5  0.5  0.5
+                //    deficit  0.1  0.4  1.0
+                // after first step redistributing 0.1 to 3 nodes:
+                //    surplus  0.4  0.4  0.4
+                //    deficit  0.0  0.3  0.9
+                // after first step redistributing 0.3 to 2 nodes:
+                //    surplus  0.4  0.1  0.1
+                //    deficit  0.0  0.0  0.6
+                // So we're left with 1 mixed node (count=1), and can't
+                // redistribute its surplus to itself!
+                // This happens because the original distribution step was
+                // already a mistake: In this case the *only* solution is for node
+                // 0 and 1 is to send all their surplus (total of 1.0) to fill
+                // node 2's entire deficit (1.0). Node 0 can't afford to send
+                // any of its surplus to node 1 - and if it does (like we did in
+                // the first step redistributing 0.1), we end up with
+                // deficit remaining on node 2!
+                //
+                // Special case of one remaining mixed node. Tell the other
+                // nodes not to give each other as much (we don't have to
+                // do this here, as we only care about "me") and instead
+                // "me" will give them their surplus
+                for (unsigned i = 0; i < rf; i++) {
+                    if (i != me) {
+                        pp[i] += diff / (mixed_count - 1);
+                    }
                 }
             }
 #ifdef TRACE
             std::cout << "     pp after: " << pp << "\n";
 #endif
+        } else {
+            // Additionally, if the algorithm ends with a single mixed node
+            // we need to apply a fix. Above we already handled the case that
+            // this single mixed node is "me", so it needs to send more to the
+            // other nodes. Here we need to handle the opposite side - me is
+            // one of the nodes which sent too much to other nodes and needs
+            // to send to the mixed node instead.
+            // TODO: find a more efficient way to check if the alorithm will
+            // end with just one mixed node and its surplus :-(
+            unsigned n_converted_to_deficit = 0;
+            unsigned mix_i = 0; // only used if n_converted_to_deficit==1
+            float last_deficit = 0;
+            for (unsigned i = 0; i < rf; i++) {
+                if (deficit[i] > mixed_surplus) {
+                    n_converted_to_deficit++;
+                    mix_i = i;
+                } else {
+                    last_deficit = std::max(last_deficit, deficit[i]);
+                }
+            }
+            if (n_converted_to_deficit == 1) {
+                auto diff = mixed_surplus - last_deficit;
+#ifdef TRACE
+                std::cout << "CASE3b. surplus " << diff << "\n";
+#endif
+                pp[mix_i] += diff / (mixed_count - 1);
+                for (unsigned i = 0; i < rf; i++) {
+                    if (deficit[i] > 0) { // mixed node
+                        if (i != mix_i && i != me) {
+                            pp[i] -= diff / (mixed_count - 1) / (mixed_count - 2);
+                        }
+                    }
+                }
+            }
         }
     }
 
