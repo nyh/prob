@@ -72,7 +72,7 @@ main() {
     int CL = 2;
 #elif 0
     // This case is impossible to reproduce the desired
-    // probabilities because node 0 wants probability > 0.5.
+    // probabilities because node 0 wants probability 0.652 > 0.5.
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.95},
         {1, 0.85},
@@ -104,7 +104,7 @@ main() {
         {4, 0.32},
     };
     int CL = 3;
-#elif 1
+#elif 0
     // Test for the algorithm fix for the case where after the algorithm we
     // we are left with just one mixed node, and need to redistribute some of
     // the pp changes.
@@ -114,6 +114,88 @@ main() {
         {2, 0.55},
     };
     int CL = 2;
+#elif 0
+    // Test for CL=1
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.80},
+        {1, 0.65},
+        {2, 0.55},
+    };
+    int CL = 1;
+#elif 0
+    // Test for CL=1
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.80},
+        {1, 0.80},
+        {2, 0.80},
+    };
+    int CL = 1;
+#elif 0
+    // This test is not working correctly. probably because P > 1/CL?
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.79},
+        {1, 0.78},
+        {2, 0.77},
+        {3, 0.80},
+        {4, 0.33},
+        {5, 0.33},
+        {6, 0.30},
+    };
+    int CL = 4;
+#elif 0
+    // This test is cannot work correctly because P of 0.80 is 0.409 > 1/CL?
+    // However, I would expect the probabilities to get clamped to 0.33, and
+    // I see them clamped to 0.29 - why??
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.77},
+        {1, 0.80},
+        {2, 0.30},
+        {3, 0.30},
+    };
+    int CL = 3;
+#elif 0
+    // BUG?
+    // This test cannot fully succeed because P(0.8) = 0.40 and it should
+    // be clamped to 1/CL=0.33 (and it is). However, we're getting a lot of
+    // invalid combination printouts - that should NOT happen. It happens
+    // because the algorithm generates in pp 0.441 which is > 1/CL, and that's
+    // A BUG.
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.77},
+        {1, 0.80},
+        {2, 0.30},
+        {3, 0.32},
+    };
+    int CL = 3;
+#elif 0
+    // BUG. We get the wrong percentages, and last node gets unusually
+    // more. Is this related to the clamping of the incoming p's? probably
+    // not.
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.66},
+        {1, 0.66},
+        {2, 0.30},
+        {3, 0.30},
+    };
+    int CL = 3;
+#elif 1
+    // BUG. The error level is very low, but still we get a lot of invalid
+    // combinations.
+    // This happens because we get in pp a probability higher than 0.33 -
+    // the first stage divided p node 1's causing me (which has the highest
+    // deficit) to partitipate in the division twice and give it pp[1] = 0.12
+    // and then later at the end we 2 remaining mixed nodes with surplus
+    // 0.316, and add that to the 0.12 and get over 1/CL = 0.333....
+    // Perhaps like we fixed the one-mixed-node-remaining case we also need
+    // to fix this case? But it will be very messy to track for the different
+    // me without running the full algorithm :-(
+    std::vector<std::pair<int,float>> node_hit_rate {
+        {0, 0.66},
+        {1, 0.66},
+        {2, 0.34},
+        {3, 0.32},
+    };
+    int CL = 3;
 #endif
 // TODO: more tests - test also CL=1, CL=4, etc.
     int N = node_hit_rate.size();

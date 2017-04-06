@@ -289,9 +289,10 @@ randcomb3(unsigned k, const std::vector<float>& p) {
     ret.reserve(k);
     float offset = 0;
     for (unsigned i = 0; i < k; i++) {
-        //std::cout << i << " " << rnd << " " << offset << "\n";
+#ifdef TRACE
+        std::cout << "randcomb3 " << i << " " << rnd << " " << offset << "\n";
+#endif
         ret.emplace_back(randone(p, rnd + offset));
-        //std::cout << "randcomb3 i=" << i << ", rnd + offset = " << rnd + offset << "\n";
         offset += interval;
     }
     //std::cout << "ret " << ret << "\n";
@@ -399,6 +400,9 @@ miss_equalizing_combination(
     // A surplus node keeps its entire desired amount of request, N*p,
     // for itself. A mixed node is cut off by 1/C.
     pp[me] = std::min(rf * epi[me].p, 1.0f / bf);
+#ifdef TRACE
+    std::cout << "pp[me(" << me << ")]  = " << pp[me] << "\n";
+#endif
 
 // In 0.81,0.79,0.27 i.e., p = 0.461,0.417,0.12 we get:
 //           p          surplus      deficit
@@ -521,11 +525,14 @@ miss_equalizing_combination(
                 // TODO: think here - is >= ok?
                 if (i != me && deficit[i] >= d.second) {
                     pp[i] += diff / (count - 1);
+#ifdef TRACE
+                    std::cout << "pp[" << i << "] = " << pp[i] << " (case a)\n";
+#endif
                 }
             }
 
 #ifdef TRACE
-            std::cout << "     pp after: " << pp << "\n";
+            std::cout << "     pp after1: " << pp << "\n";
 #endif
             // TODO: confirm last loop really had "count" success iterations.
             --count;
@@ -547,8 +554,12 @@ miss_equalizing_combination(
             auto last_deficit = sorted_deficits.back().second;
             auto diff = mixed_surplus - last_deficit;
             if (count > 1) {
+                std::cout << "CASE4. surplus " << diff << " count " << count << "\n";
                 for (unsigned i = 0; i < rf; i++) {
                     if (i != me && deficit[i] > last_deficit) {
+#ifdef TRACE
+                        std::cout << "adding " << (diff / (count-1)) << " to pp[" << i << "] = " << pp[i] << "\n";
+#endif
                         pp[i] += diff / (count - 1);
                     }
                 }
@@ -583,11 +594,14 @@ miss_equalizing_combination(
                 for (unsigned i = 0; i < rf; i++) {
                     if (i != me) {
                         pp[i] += diff / (mixed_count - 1);
+#ifdef TRACE
+                        std::cout << "pp[" << i << "] = " << pp[i] << "(case b)\n";
+#endif
                     }
                 }
             }
 #ifdef TRACE
-            std::cout << "     pp after: " << pp << "\n";
+            std::cout << "     pp after2: " << pp << "\n";
 #endif
         } else {
             // Additionally, if the algorithm ends with a single mixed node
@@ -615,10 +629,16 @@ miss_equalizing_combination(
                 std::cout << "CASE3b. surplus " << diff << "\n";
 #endif
                 pp[mix_i] += diff / (mixed_count - 1);
+#ifdef TRACE
+                std::cout << "pp[" << mix_i << "] = " << pp[mix_i] << "(case c)\n";
+#endif
                 for (unsigned i = 0; i < rf; i++) {
                     if (deficit[i] > 0) { // mixed node
                         if (i != mix_i && i != me) {
                             pp[i] -= diff / (mixed_count - 1) / (mixed_count - 2);
+#ifdef TRACE
+                            std::cout << "pp[" << i << "] = " << pp[i] << "(case d)\n";
+#endif
                         }
                     }
                 }
@@ -655,9 +675,9 @@ miss_equalizing_combination(
                 // already flowed some work to other nodes in the
                 // mixed node redistribution algorithm above.
                 pp[j] += deficit[j] / new_total_deficit * my_surplus; 
-                if (pp[j] > 1.0f/bf) {
-                    std::cout << "PROB.H PROBLEM1\n";
-                }
+#ifdef TRACE
+                std::cout << "pp[" << j << "] = " << pp[j] << "(case e)\n";
+#endif
             }
         }
     }
