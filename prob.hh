@@ -554,7 +554,9 @@ miss_equalizing_combination(
             auto last_deficit = sorted_deficits.back().second;
             auto diff = mixed_surplus - last_deficit;
             if (count > 1) {
+#ifdef TRACE
                 std::cout << "CASE4. surplus " << diff << " count " << count << "\n";
+#endif
                 for (unsigned i = 0; i < rf; i++) {
                     if (i != me && deficit[i] > last_deficit) {
 #ifdef TRACE
