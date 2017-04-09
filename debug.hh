@@ -1,3 +1,5 @@
+#pragma once
+
 #undef TRACE
 
 #ifdef TRACE
