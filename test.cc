@@ -1,6 +1,9 @@
 #include "prob.hh"
 
 #include <string>
+#include <iostream>
+
+#include "debug.hh"
 
 // do_reorder() cycles the node_hit_rate vector to have "me" as first, because
 // that's how it looks in the original caller.
@@ -38,7 +41,7 @@ main() {
         {2, 0.2},
     };
     int CL = 2;
-#elif 0
+#elif 1
     // Reorder the nodes on different coordinators (cyclic reordering
     // so the coordinator is first) and see that it doesn't mess up the
     // decisions like happened in previous versions.
@@ -131,7 +134,8 @@ main() {
     };
     int CL = 1;
 #elif 0
-    // This test is not working correctly. probably because P > 1/CL?
+    // BUG. This test is not working correctly, but P < 1/CL so it should
+    // have worked.
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.79},
         {1, 0.78},
@@ -143,9 +147,12 @@ main() {
     };
     int CL = 4;
 #elif 0
-    // This test is cannot work correctly because P of 0.80 is 0.409 > 1/CL?
-    // However, I would expect the probabilities to get clamped to 0.33, and
-    // I see them clamped to 0.29 - why??
+    // BUG! This test has original probabilities 0.356234, 0.409669, 0.117048,
+    // 0.117048, clipped at 1/CL to 0.333333, 0.333333, 0.166667, 0.166667
+    // However, even those are not achieved, and we achieve the very wrong
+    // 0.291834 0.291737 0.166724 0.249706. Note how the 3rd and 4th nodes
+    // which, no matter what, should have received the same amount of work,
+    // did not. So it's definitely a bug.
     std::vector<std::pair<int,float>> node_hit_rate {
         {0, 0.77},
         {1, 0.80},
@@ -168,17 +175,6 @@ main() {
     };
     int CL = 3;
 #elif 0
-    // BUG. We get the wrong percentages, and last node gets unusually
-    // more. Is this related to the clamping of the incoming p's? probably
-    // not.
-    std::vector<std::pair<int,float>> node_hit_rate {
-        {0, 0.66},
-        {1, 0.66},
-        {2, 0.30},
-        {3, 0.30},
-    };
-    int CL = 3;
-#elif 1
     // BUG. The error level is very low, but still we get a lot of invalid
     // combinations.
     // This happens because we get in pp a probability higher than 0.33 -
@@ -197,7 +193,6 @@ main() {
     };
     int CL = 3;
 #endif
-// TODO: more tests - test also CL=1, CL=4, etc.
     int N = node_hit_rate.size();
 
     std::cout << "N=" << node_hit_rate.size() << " nodes, given hit rates:\n";
@@ -257,7 +252,11 @@ main() {
             count2[coord][s]++;
         }
         if (invalid) {
-            std::cout << "invalid combination: " << c << "\n";
+            std::cout << "invalid combination: ";
+            for (auto& s : c) {
+                std::cout << s << " ";
+            }
+            std::cout << "\n";
             count_invalid++;
         }
 //        std::cout << "\n";
