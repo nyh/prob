@@ -2,6 +2,8 @@
 
 #include <string>
 #include <iostream>
+#include <random>
+#include <algorithm>
 
 #include "debug.hh"
 

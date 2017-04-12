@@ -2,10 +2,10 @@
 /*
  * Given a vector of cache hit ratio (hits per request) for each of N nodes,
  * and knowing which of them is the current node, our goal is to return a
- * random vector of C different nodes (i.e., a combination of C out of N),
+ * random vector of K different nodes (i.e., a combination of K out of N),
  * where the goals of the random distribution are:
  *
- * 1. If we send each request to the C returned nodes, the *misses per
+ * 1. If we send each request to the K returned nodes, the *misses per
  *    second* of all nodes will be the same. In other words, nodes with
  *    low hit ratios will be sent less work.
  *
@@ -15,15 +15,10 @@
  *
  * 3. We assume that *this node* got chosen uniformly randomly among the
  *    N nodes (in other words, the client chose a coordinator node, us,
- *     uniformly, and we need to choose C nodes and forward the request
- *     to them).
+ *    uniformly, and we need to choose K nodes and forward the request
+ *    to them).
  */
 #include <vector>
-#include <utility>
-#include <random>
-#include <algorithm>
-
-#include <cassert>
 
 #include "debug.hh"
 
@@ -40,24 +35,22 @@ class combination_generator {
 private:
     std::vector<float> pp;
     std::vector<Node> nodes;
-    int c;
+    int k;
 public:
-    combination_generator(std::vector<float>&& pp, std::vector<Node>&& nodes, int c)
-        : pp(std::move(pp)), nodes(std::move(nodes)), c(c) {
-        // TODO: throw if pp.size() != nodes.size() or not 1 <= c < pp.size()
+    combination_generator(std::vector<float>&& pp, std::vector<Node>&& nodes, int k)
+        : pp(std::move(pp)), nodes(std::move(nodes)), k(k) {
+        // TODO: throw if pp.size() != nodes.size() or not 1 <= k < pp.size()
     }
     std::vector<Node> get() {
         std::vector<Node> ret;
-        ret.reserve(c);
-        std::vector<int> r = randcomb(c, pp);
+        ret.reserve(k);
+        std::vector<int> r = randcomb(k, pp);
         for (int i : r) {
             ret.push_back(nodes[i]);
         }
         return ret;
     }
 };
-
-
 
 
 template<typename Node>
