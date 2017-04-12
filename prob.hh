@@ -29,63 +29,6 @@
 
 class rand_exception {};
 
-
-#if 0
-// This code is an incomplete attempt at giving each *combination* of K
-// items a probability (calculated from the probability of each item),
-// and then drawing a random combinaton. Currently, only the case of K = N-1
-// is implemented, where drawing a combination is as simple as drawing one
-// item which will be left *out* of the combination.
-std::vector<unsigned>
-randcomb2(unsigned k, const std::vector<float>& p) {
-    auto n = p.size();
-    if (k > p.size()) {
-        throw rand_exception();
-    } else if (k == 0) {
-        return std::vector<unsigned>();
-    }
-    std::vector<unsigned> ret;
-    ret.reserve(k);
-    if (k == n) {
-        // NOTE: In this case we do not fulfill the desired p.
-        // return an error?
-        std::cerr << "randcomb2: can't match p. case 1.\n";
-        for (unsigned i = 0; i < n; i++) {
-            ret.push_back(i);
-        }
-        return ret;
-    } else if (k == n - 1) {
-        // In this case, there are exactly k results, each result is a
-        // combination x_i which misses exactly item i, so
-        //
-        // 1 - p(x_i) = sum_j!=i p(x_j) = k p_i
-        std::vector<std::pair<unsigned,float>> np;
-        np.reserve(n);
-        for (unsigned i = 0; i < n; i++) {
-            // TODO: If negative, throw
-            float q = 1 - k*p[i];
-            if (q < 0) {
-                q = 0; 
-            }
-            else if (q > 1) {
-                q = 1; 
-            }
-            np.emplace_back(i, q);
-        }
-        auto d = randone(np).first;
-        std::vector<unsigned> ret;
-        ret.reserve(k);
-        for (unsigned i = 0; i < n; i++) {
-            if (i != d) {
-                ret.push_back(i);
-            }
-        }
-        return ret;
-    }
-    throw rand_exception();
-}
-#endif
-
 std::vector<int> randcomb(unsigned k, const std::vector<float>& p);
 std::vector<float> miss_equalizing_probablities(const std::vector<float>& hit_rates);
 void clip_probabilities(std::vector<float>& p, float limit);
@@ -123,8 +66,6 @@ miss_equalizing_combination(
     const std::vector<std::pair<Node,float>>& node_hit_rate, unsigned me, int bf)
 {
     auto rf = node_hit_rate.size();
-
-    static thread_local std::default_random_engine random_engine;
 
     // FIXME: don't take std::pair<node,float> but separate vectors
     std::vector<float> hit_rates;
