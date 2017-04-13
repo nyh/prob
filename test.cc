@@ -202,26 +202,10 @@ main() {
     // Tests with N=4, CL=3
     test_hit_rates({0.90, 0.89, 0.89, 0.40}, 3);
 #if 0
-    // BUG! This test has original probabilities 0.356234, 0.409669, 0.117048,
-    // 0.117048, clipped at 1/CL to 0.333333, 0.333333, 0.166667, 0.166667
-    // However, even those are not achieved, and we achieve the very wrong
-    // 0.291834 0.291737 0.166724 0.249706. Note how the 3rd and 4th nodes
-    // which, no matter what, should have received the same amount of work,
-    // did not. So it's definitely a bug.
-    test_hit_rates({0.77, 0.80, 0.30, 0.30}, 3);
-#endif
-#if 0
-    // BUG! This test cannot fully succeed because P(0.8) = 0.40 and it should
-    // be clipped to 1/CL=0.33 (and it is). However, we're getting a lot of
-    // invalid combination printouts - that should NOT happen. It happens
-    // because the algorithm generates in pp 0.441 which is > 1/CL, and that's
-    // A BUG.
-    test_hit_rates({0.77, 0.80, 0.30, 0.32}, 3);
-#endif
-#if 0
-    // BUG! The error level is very low, but still we get a lot of invalid
-    // combinations.
-    // This happens because we get in pp a probability higher than 0.33 -
+    // BUG! The desired work sent to nodes is accurately achieved, but we get
+    // a lot of "invalid combination" errors.  This happens because we get in
+    // one of the pp's (the amount of work which one coordinator sends to one
+    // other node) a probability higher than 0.33:
     // the first stage divided p node 1's causing me (which has the highest
     // deficit) to partitipate in the division twice and give it pp[1] = 0.12
     // and then later at the end we 2 remaining mixed nodes with surplus
@@ -230,6 +214,14 @@ main() {
     // to fix this case? But it will be very messy to track for the different
     // me without running the full algorithm :-(
     test_hit_rates({0.66, 0.66, 0.34, 0.32}, 3);
+#endif
+#if 0
+    // Cases of the the same bug. These tests cannot fully succeed because they
+    // have desired probabilities above 1/CL that need to be clipped. However,
+    // as in the above example (and for the same reason) they also get a lot of
+    // "invalid combination" errors and this is a bug.
+    test_hit_rates({0.77, 0.80, 0.30, 0.32}, 3);
+    test_hit_rates({0.77, 0.80, 0.30, 0.30}, 3);
 #endif
 
     // Tests with N=5, CL=2
