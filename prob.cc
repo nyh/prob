@@ -311,16 +311,23 @@ redistribute(const std::vector<float>& p, unsigned me, unsigned k) {
             std::cout << "     pp before: " << pp << "\n";
             std::cout << "     count: " << count << "\n";
 #endif
-            // Distribute it among all the mixed nodes with higher deficit
-            // there should be exactly count of those including me.
-            if (diff)
+            --count;
+            // Distribute diff among all the mixed nodes with higher deficit.
+            // There should be exactly "count" of those excluding me.
+            if (!count) {
+                break;
+            }
             for (unsigned i = 0; i < rf; i++) {
 #ifdef TRACE
                 std::cout << i << " " << d.first << " " << deficit[i] << " " << d.second << "\n";
 #endif
-                // TODO: think here - is >= ok?
+                // The ">=" here is ok: If several deficits are tied, the first one
+                // contributes the diff to all those nodes (all are equal, so >=),
+                // while when we get to the following nodes, they have diff==0
+                // (because of the tied deficit) so we don't care that this loop
+                // doesn't quite match count nodes.
                 if (i != me && deficit[i] >= d.second) {
-                    pp[i] += diff / (count - 1);
+                    pp[i] += diff / count;
 #ifdef TRACE
                     std::cout << "pp[" << i << "] = " << pp[i] << " (case a)\n";
 #endif
@@ -330,8 +337,6 @@ redistribute(const std::vector<float>& p, unsigned me, unsigned k) {
 #ifdef TRACE
             std::cout << "     pp after1: " << pp << "\n";
 #endif
-            // TODO: confirm last loop really had "count" success iterations.
-            --count;
             if (d.first == me) {
                 // We only care what "me" sends, and only the elements in
                 // the sorted list earlier than me could have forced it to
