@@ -135,7 +135,7 @@ void test_hit_rates(std::vector<float> hr, unsigned CL, bool reorder=false,
     }
     std::cout << "\n";
     for(int i = 0; i < N; i++) {
-        report(std::abs((count[i]/sum/p[i] - 1)*100) < 2, "error less than 2%");
+        report(std::abs((count[i]/sum/p[i] - 1)*100) < 4, "error less than 4%");
     }
     std::cout << "misses (work * (1-hitrate)), normalized. Should be all 1:\n\t";
     float min = 1.0;
@@ -198,22 +198,9 @@ main() {
     // coordinator is first) and see that it doesn't mess up the decisions like
     // happened in previous versions.
     test_hit_rates({0.8, 0.57, 0.8}, 2, true);
-#if 0
-    // This case is impossible to reproduce the desired
-    // probabilities because node 0 wants probability 0.652 > 0.5.
-    // How should we test this?
-    test_hit_rates({0.95, 0.85, 0.75}, 2);
-#endif
 
     // Tests with N=4, CL=3
     test_hit_rates({0.90, 0.89, 0.89, 0.40}, 3);
-#if 0
-    // Here, as we saw before, one of the probabilities is 0.348 > 0.333, so we
-    // can't achieve the exact probabilities. TODO: think how to make the test
-    // succeed anyway by testing less. Or start testing not by hit rates but by
-    // probabilities.
-    test_hit_rates({0.90, 0.89, 0.91, 0.40}, 3);
-#endif
 #if 0
     // BUG! This test has original probabilities 0.356234, 0.409669, 0.117048,
     // 0.117048, clipped at 1/CL to 0.333333, 0.333333, 0.166667, 0.166667
@@ -251,11 +238,17 @@ main() {
     // Tests with N=5, CL=3
     test_hit_rates({0.79, 0.78, 0.77, 0.80, 0.32}, 3);
 
-#if 0
     // Tests with N=7, CL=4
-    // BUG. This test is not working correctly, but P < 1/CL so it should
-    // have worked.
     test_hit_rates({0.79, 0.78, 0.77, 0.80, 0.33, 0.33, 0.3}, 4);
+
+#if 0
+    // In this case, it is impossible to reproduce the desired probabilities because
+    // node 0 wants probability 0.652 > 0.5. So it is rather pointless to test this
+    // call. However, we should separately test the clipping algorithm.
+    test_hit_rates({0.95, 0.85, 0.75}, 2);
+    // Here, as we saw before, one of the probabilities is 0.348 > 0.333, so we
+    // can't achieve the exact probabilities.
+    test_hit_rates({0.90, 0.89, 0.91, 0.40}, 3);
 #endif
 
     std::cout << "SUMMARY: " << tests << " tests, " << fails << " failures\n";

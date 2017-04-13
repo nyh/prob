@@ -306,9 +306,6 @@ redistribute(const std::vector<float>& p, unsigned me, unsigned k) {
             // What "diff" to distribute
             auto diff = d.second - s;
             s = d.second;
-            if (!diff) {
-                continue;
-            }
 #ifdef TRACE
             std::cout << "     diff: " << diff << "\n";
             std::cout << "     pp before: " << pp << "\n";
@@ -316,6 +313,7 @@ redistribute(const std::vector<float>& p, unsigned me, unsigned k) {
 #endif
             // Distribute it among all the mixed nodes with higher deficit
             // there should be exactly count of those including me.
+            if (diff)
             for (unsigned i = 0; i < rf; i++) {
 #ifdef TRACE
                 std::cout << i << " " << d.first << " " << deficit[i] << " " << d.second << "\n";
