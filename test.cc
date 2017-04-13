@@ -51,7 +51,8 @@ void test_hit_rates(std::vector<float> hr, unsigned CL, bool reorder=false,
     }
     std::cout << "Asking for CL=" << CL << "\n\n";
 
-    std::default_random_engine random_engine;
+    std::random_device r;
+    std::default_random_engine random_engine(r());
     std::uniform_int_distribution<> rand_node = std::uniform_int_distribution<>(0, N-1);
 
     // count we sent a request to each node:

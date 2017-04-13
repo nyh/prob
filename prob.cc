@@ -1,16 +1,18 @@
 #include <vector>
 #include <list>
-
-#include <stdlib.h>
+#include <random>
 
 #include "debug.hh"
 
-// FIXME: use a C++ random number generator, with a per-thread state, not
-// the thread-unsafe drand48!!!
 // Return a uniformly-distributed random number in [0,1)
+// We use per-thread state for thread safety.  We seed the random number generator
+// once with a real random value, if available,
+static std::random_device r;
+static thread_local std::default_random_engine random_engine(r());
 static float
 rand_float() {
-    return drand48();
+    static thread_local std::uniform_real_distribution<float> u(0, 1);
+    return u(random_engine);
 }
 
 // randone() takes a vector of N probability, and randomly returns one of
@@ -143,6 +145,9 @@ randcomb(unsigned k, const std::vector<float>& p) {
         ret.emplace_back(randone(p, rnd + offset));
         offset += interval;
     }
+#ifdef TRACE
+    std::cout << "randcomb returning " << ret << "\n";
+#endif
     return ret;
 }
 
