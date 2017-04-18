@@ -18,11 +18,13 @@
  *    to them).
  */
 #include <vector>
+#include <cassert>
 
 #include "debug.hh"
 
 class rand_exception {};
 
+float rand_float();
 std::vector<int> randcomb(unsigned k, const std::vector<float>& p);
 std::vector<float> miss_equalizing_probablities(const std::vector<float>& hit_rates);
 void clip_probabilities(std::vector<float>& p, float limit);
@@ -34,9 +36,9 @@ class combination_generator {
 private:
     std::vector<float> pp;
     std::vector<Node> nodes;
-    int k;
+    unsigned k;
 public:
-    combination_generator(std::vector<float>&& pp, std::vector<Node>&& nodes, int k)
+    combination_generator(std::vector<float>&& pp, std::vector<Node>&& nodes, unsigned k)
         : pp(std::move(pp)), nodes(std::move(nodes)), k(k) {
         // TODO: throw if pp.size() != nodes.size() or not 1 <= k < pp.size()
     }
@@ -48,6 +50,41 @@ public:
             ret.push_back(nodes[i]);
         }
         return ret;
+    }
+    // get_extra() is like get() except that it returns one extra node
+    // which the caller should use if one of the nodes returned does not
+    // answer.
+    // The "extra" node will be different from any of the regular nodes,
+    // but does not participate in the probability calculation and we do
+    // not make a guarantee how it will be distributed (it will in fact
+    // be uniformly distributed over the remaining nodes).
+    // In particular, the caller should only use the extra node in
+    // exceptional situations. If the caller always plans to send a request
+    // to one additional node up-front, it should call get() on a
+    // combination_generator of k+1.
+    std::pair<std::vector<Node>, Node> get_extra() {
+        // Never call this with k==n...
+        auto n = pp.size();
+        assert(k<n);
+        std::vector<Node> ret;
+        ret.reserve(k);
+        std::vector<int> r = randcomb(k, pp);
+        std::vector<bool> used(n);
+        for (int i : r) {
+            ret.push_back(nodes[i]);
+            used[i] = true;
+        }
+        int m = ::rand_float() * (n - k);
+        for (unsigned i = 0; i < n; i++) {
+            if (!used[i]) {
+                if (!m) {
+                    return {std::move(ret), nodes[i]};
+                }
+                --m;
+            }
+        }
+        assert(0); // impossible to get here.
+
     }
 };
 

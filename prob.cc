@@ -9,7 +9,7 @@
 // once with a real random value, if available,
 static std::random_device r;
 static thread_local std::default_random_engine random_engine(r());
-static float
+float
 rand_float() {
     static thread_local std::uniform_real_distribution<float> u(0, 1);
     return u(random_engine);

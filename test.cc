@@ -36,7 +36,12 @@ std::vector<std::pair<int,float>> do_reorder(
     return ret;
 }
 
-void test_hit_rates(std::vector<float> hr, unsigned CL, bool reorder=false,
+enum class mode {
+    regular,
+    reorder,
+    extra,
+};
+void test_hit_rates(std::vector<float> hr, unsigned CL, mode m=mode::regular,
         unsigned iterations = 100000) {
     std::vector<std::pair<int,float>> node_hit_rate;
     int i=0;
@@ -72,9 +77,30 @@ void test_hit_rates(std::vector<float> hr, unsigned CL, bool reorder=false,
     for (unsigned i = 0; i < iterations; i++) {
         int coord = rand_node(random_engine);
         std::vector<int> c;
-        if (reorder) {
+        if (m == mode::reorder) {
             auto gen = miss_equalizing_combination(do_reorder(node_hit_rate, coord), 0, CL);
             c = gen.get();
+        } else if (m == mode::extra) {
+            auto gen = miss_equalizing_combination(node_hit_rate, coord, CL);
+            auto p = gen.get_extra();
+            c = p.first;
+            auto extra = p.second;
+            // check if "extra" is valid. Needs to be one of the nodes, but
+            // not in c.
+            bool valid = extra >= 0 && extra < N;
+            for (auto i : c) {
+                if (i == extra) {
+                    valid = false;
+                }
+            }
+            if (!valid) {
+                std::cout << "invalid extra " << extra << " for";
+                for (auto& i : c) {
+                    std::cout << " " << i;
+                }
+                std::cout << "\n";
+                count_invalid++;
+            }
         } else {
             auto gen = miss_equalizing_combination(node_hit_rate, coord, CL);
             c = gen.get();
@@ -197,7 +223,7 @@ main() {
     // Reorder the nodes on different coordinators (cyclic reordering so the
     // coordinator is first) and see that it doesn't mess up the decisions like
     // happened in previous versions.
-    test_hit_rates({0.8, 0.57, 0.8}, 2, true);
+    test_hit_rates({0.8, 0.57, 0.8}, 2, mode::reorder);
 
     // Tests with N=4, CL=3
     test_hit_rates({0.90, 0.89, 0.89, 0.40}, 3);
@@ -242,6 +268,9 @@ main() {
     // can't achieve the exact probabilities.
     test_hit_rates({0.90, 0.89, 0.91, 0.40}, 3);
 #endif
+
+    // Test for get_extra()
+    test_hit_rates({0.79, 0.78, 0.77, 0.80, 0.32}, 2, mode::extra);
 
     std::cout << "SUMMARY: " << tests << " tests, " << fails << " failures\n";
     return fails == 0 ? 0 : 1;
