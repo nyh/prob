@@ -81,10 +81,10 @@ void test_hit_rates(std::vector<float> hr, unsigned CL, mode m=mode::regular,
             auto gen = miss_equalizing_combination(do_reorder(node_hit_rate, coord), 0, CL);
             c = gen.get();
         } else if (m == mode::extra) {
-            auto gen = miss_equalizing_combination(node_hit_rate, coord, CL);
-            auto p = gen.get_extra();
-            c = p.first;
-            auto extra = p.second;
+            auto gen = miss_equalizing_combination(node_hit_rate, coord, CL, true);
+            c = gen.get();
+            auto extra = c.back();
+            c.pop_back();
             // check if "extra" is valid. Needs to be one of the nodes, but
             // not in c.
             bool valid = extra >= 0 && extra < N;
@@ -104,6 +104,11 @@ void test_hit_rates(std::vector<float> hr, unsigned CL, mode m=mode::regular,
         } else {
             auto gen = miss_equalizing_combination(node_hit_rate, coord, CL);
             c = gen.get();
+        }
+        if (c.size() != CL) {
+            std::cout << "vector with wrong number of elements, expected "
+                << CL << ", got " << c.size() << ".\n";
+            count_invalid++;
         }
         // sort for nicer debugging printout (more useful with uniq) but also to
         // make it easier to find invalid combinations with duplicate nodes

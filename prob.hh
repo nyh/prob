@@ -37,54 +37,55 @@ private:
     std::vector<float> pp;
     std::vector<Node> nodes;
     unsigned k;
-public:
-    combination_generator(std::vector<float>&& pp, std::vector<Node>&& nodes, unsigned k)
-        : pp(std::move(pp)), nodes(std::move(nodes)), k(k) {
-        // TODO: throw if pp.size() != nodes.size() or not 1 <= k < pp.size()
-    }
-    std::vector<Node> get() {
-        std::vector<Node> ret;
-        ret.reserve(k);
-        std::vector<int> r = randcomb(k, pp);
-        for (int i : r) {
-            ret.push_back(nodes[i]);
-        }
-        return ret;
-    }
-    // get_extra() is like get() except that it returns one extra node
-    // which the caller should use if one of the nodes returned does not
-    // answer.
-    // The "extra" node will be different from any of the regular nodes,
+    // If "extra" is true, in addition to the regular k nodes returned by
+    // get(), it returns one extra node which the caller should use if one
+    // of the nodes returned does not answer.
+    // The "extra" is guaranteed to be different from any of the regular nodes,
     // but does not participate in the probability calculation and we do
     // not make a guarantee how it will be distributed (it will in fact
     // be uniformly distributed over the remaining nodes).
     // In particular, the caller should only use the extra node in
     // exceptional situations. If the caller always plans to send a request
-    // to one additional node up-front, it should call get() on a
-    // combination_generator of k+1.
-    std::pair<std::vector<Node>, Node> get_extra() {
-        // Never call this with k==n...
+    // to one additional node up-front, it should use a combination_generator
+    // of k+1 - and extra=false.
+    bool extra;
+public:
+    combination_generator(std::vector<float>&& pp, std::vector<Node>&& nodes, unsigned k, bool extra)
+        : pp(std::move(pp)), nodes(std::move(nodes)), k(k), extra(extra) {
+        // TODO: throw if pp.size() != nodes.size() or not 1 <= k < pp.size()
+    }
+    std::vector<Node> get() {
         auto n = pp.size();
-        assert(k<n);
+        auto ke = k + (extra ? 1 : 0);
+        assert(ke<=n);
         std::vector<Node> ret;
-        ret.reserve(k);
+        ret.reserve(ke);
         std::vector<int> r = randcomb(k, pp);
-        std::vector<bool> used(n);
         for (int i : r) {
             ret.push_back(nodes[i]);
-            used[i] = true;
         }
-        int m = ::rand_float() * (n - k);
-        for (unsigned i = 0; i < n; i++) {
-            if (!used[i]) {
-                if (!m) {
-                    return {std::move(ret), nodes[i]};
+        if (extra) {
+            // Choose one of the remaining n-k nodes as the extra (k+1)th
+            // returned node. Currently, we choose the nodes with equal
+            // probablities. We could have also used pp or the original p
+            // for this - I don't know which is better, if it even matters.
+            std::vector<bool> used(n);
+            for (int i : r) {
+                used[i] = true;
+            }
+            int m = ::rand_float() * (n - k);
+            for (unsigned i = 0; i < n; i++) {
+                if (!used[i]) {
+                    if (!m) {
+                        ret.push_back(nodes[i]);
+                        break;
+                    }
+                    --m;
                 }
-                --m;
             }
         }
-        assert(0); // impossible to get here.
-
+        assert(ret.size() == ke);
+        return ret;
     }
 };
 
@@ -92,7 +93,7 @@ public:
 template<typename Node>
 combination_generator<Node>
 miss_equalizing_combination(
-    const std::vector<std::pair<Node,float>>& node_hit_rate, unsigned me, int bf)
+    const std::vector<std::pair<Node,float>>& node_hit_rate, unsigned me, int bf, bool extra=false)
 {
     auto rf = node_hit_rate.size();
 
@@ -133,6 +134,6 @@ miss_equalizing_combination(
     for (unsigned i = 0; i < rf; i++) {
         nodes[i] = node_hit_rate[i].first;
     }
-    return combination_generator<Node>(std::move(p), std::move(nodes), bf);
+    return combination_generator<Node>(std::move(p), std::move(nodes), bf, extra);
 }
 
