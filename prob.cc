@@ -7,7 +7,7 @@
 // Return a uniformly-distributed random number in [0,1)
 // We use per-thread state for thread safety.  We seed the random number generator
 // once with a real random value, if available,
-static std::random_device r;
+static thread_local std::random_device r;
 static thread_local std::default_random_engine random_engine(r());
 float
 rand_float() {
