@@ -12,7 +12,14 @@ static thread_local std::default_random_engine random_engine(r());
 float
 rand_float() {
     static thread_local std::uniform_real_distribution<float> u(0, 1);
-    return u(random_engine);
+    float ret = u(random_engine);
+    // Gcc 5 has a bug (fixed in Gcc 6) where the above random number
+    // generator could return 1.0, contradicting the documentation. Let's
+    // replace 1.0 by the largest number below it.
+    if (ret == 1.0f) {
+        ret = std::nextafter(ret, 0.0f);
+    }
+    return ret;
 }
 
 // randone() takes a vector of N probability, and randomly returns one of
