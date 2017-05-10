@@ -15,7 +15,10 @@ rand_float() {
     float ret = u(random_engine);
     // Gcc 5 has a bug (fixed in Gcc 6) where the above random number
     // generator could return 1.0, contradicting the documentation. Let's
-    // replace 1.0 by the largest number below it.
+    // replace 1.0 by the largest number below it. It's not really important
+    // what we replace it with... Could have also chosen any arbitrary
+    // constant in [0,1), or to run the random number generator again (this
+    // is what the fix in Gcc 6 does).
     if (ret == 1.0f) {
         ret = std::nextafter(ret, 0.0f);
     }
